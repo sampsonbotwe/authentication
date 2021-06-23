@@ -1,7 +1,15 @@
 import axios from "axios";
-import { ICredentials, ISignUpInfo } from "../interfaces/interfaces";
+import {
+  IActivateRequest,
+  ICredentials,
+  ISignUpRequest,
+} from "../interfaces/interfaces";
 
 export const login = (credentials: ICredentials) =>
-  axios.post("/users/login", credentials);
+  axios.post("/account/login", credentials);
 
-export const signup = (info: ISignUpInfo) => axios.post("/users/signup", info);
+export const signup = (data: ISignUpRequest) =>
+  axios.post("/account/signup", data);
+
+export const activate = (data: IActivateRequest) =>
+  axios.post("/account/activate", data);

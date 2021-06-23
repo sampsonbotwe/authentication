@@ -11,7 +11,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-app.use("/users", usersRouter);
+app.use("/account", usersRouter);
 
 app.get("/", (req, res) => {
   res.status(200).send("Hello!");

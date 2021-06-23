@@ -1,7 +1,7 @@
-import { Request, Response } from "express";
+import { json, Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import User from "../models/User";
+import User, { IUser } from "../models/User";
 import { sendMail } from "../helpers";
 
 export const signup = async (req: Request, res: Response) => {
@@ -16,9 +16,11 @@ export const signup = async (req: Request, res: Response) => {
         .json({ message: "Email address has already been taken." });
 
     const activationToken = jwt.sign(
-      { name, email },
-      process.env.ACTIVATION_KEY || "",
-      { expiresIn: "1h" }
+      { email },
+      process.env.ACTIVATION_TOKEN_SECRET || "",
+      {
+        expiresIn: "1h",
+      }
     );
 
     const body =
@@ -53,31 +55,75 @@ export const signup = async (req: Request, res: Response) => {
 };
 
 export const login = async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-  const user = await User.findOne({ email });
+    const user = await User.findOne({ email });
 
-  if (user === null)
-    return res.status(401).json({ message: "Invalid credentials." });
+    if (user === null)
+      return res.status(401).json({ message: "Invalid credentials." });
 
-  const isValidPassword = await bcrypt.compare(password, user.password);
+    const isValidPassword = await bcrypt.compare(password, user.password);
 
-  if (!isValidPassword)
-    return res.status(401).json({ message: "Invalid credentials." });
+    if (!isValidPassword)
+      return res.status(401).json({ message: "Invalid credentials." });
 
-  if (!user.isActive)
-    return res.status(401).json({
-      message:
-        "User is not yet active. A confirmation email has been sent to you.",
-    });
+    if (!user.isActive)
+      return res.status(401).json({
+        message:
+          "User is not yet active. A confirmation email has been sent to you.",
+      });
 
-  const accessToken = jwt.sign(user, process.env.PRIVATE_KEY as string, {
-    expiresIn: "1h",
-  });
+    const accessToken = jwt.sign(
+      JSON.stringify(user),
+      process.env.ACCESS_TOKEN_SECRET as string
+    );
 
-  res.status(202).json({ accessToken });
+    res.status(202).json({ accessToken });
+  } catch (error) {
+    console.log(error);
+    res
+      .status(500)
+      .json({ message: "A login error occured. Please try again." });
+  }
 };
 
-export const activate = (req: Request, res: Response) => {
-  res.status(200).json("Activate");
+export const activate = async (req: Request, res: Response) => {
+  try {
+    const { activationToken } = req.body;
+
+    jwt.verify(
+      activationToken,
+      process.env.ACTIVATION_TOKEN_SECRET as string,
+      async (err: any, result: any) => {
+        if (err) return res.status(403).json(err);
+        const { email } = result as IUser;
+
+        const user = await User.findOne({ email });
+
+        if (user === null)
+          return res
+            .status(401)
+            .json({ message: "The activation key is not valid." });
+
+        if (user.isActive)
+          return res.status(401).json({
+            message:
+              "This account has already been activated. Proceed to login.",
+          });
+
+        user.isActive = true;
+        await user.save();
+
+        res
+          .status(200)
+          .json({ message: "Activation is complete. Proceed to login." });
+      }
+    );
+  } catch (error) {
+    console.log(error);
+    res
+      .status(500)
+      .json({ message: "An activation error occured. Please try again." });
+  }
 };
